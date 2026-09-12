@@ -33,6 +33,7 @@
     "react-dom": "^19.2.3",
     "react-markdown": "^10.1.0",
     "react-native": "^0.86.3",
+    "react-native-webview": "13.16.1",
     "vite": "^6.2.3"
   },
   "devDependencies": {
