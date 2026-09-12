@@ -1,0 +1,12 @@
+{
+  "name": "MYJPG",
+  "description": "Your Jalpaiguri, Connected. Everything local. One place.",
+  "requestFramePermissions": [
+    "geolocation",
+    "camera",
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

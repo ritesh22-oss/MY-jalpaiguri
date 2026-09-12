@@ -1,0 +1,240 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- GLOBAL HELPERS ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'riteshganguly0911@gmail.com' ||
+        request.auth.token.email == 'riteshganguly0911@gamil.com'
+      );
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // --- ENTITY VALIDATIONS ---
+
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['id', 'name', 'phone', 'location', 'language', 'createdAt']) &&
+             data.keys().size() <= 16 &&
+             data.id == request.auth.uid &&
+             data.name is string && data.name.size() <= 100 &&
+             data.phone is string && data.phone.size() <= 20 &&
+             data.location is string && data.location.size() <= 200 &&
+             data.language in ['English', 'বাংলা', 'हिन्दी'] &&
+             data.createdAt is string;
+    }
+
+    function isValidWorker(data) {
+      return data.keys().hasAll(['userId', 'name', 'profession', 'category', 'phone', 'serviceArea', 'description']) &&
+             data.userId == request.auth.uid &&
+             data.name is string && data.name.size() <= 100 &&
+             data.profession is string && data.profession.size() <= 100 &&
+             data.category is string && data.category.size() <= 50 &&
+             data.phone is string && data.phone.size() <= 20 &&
+             data.description is string && data.description.size() <= 2000;
+    }
+
+    function isValidShop(data) {
+      return data.keys().hasAll(['ownerId', 'name', 'category', 'address', 'locality', 'pincode', 'lat', 'lng']) &&
+             data.ownerId == request.auth.uid &&
+             data.name is string && data.name.size() <= 100 &&
+             data.category is string && data.category.size() <= 100 &&
+             data.address is string && data.address.size() <= 300 &&
+             data.lat is number && data.lng is number;
+    }
+
+    function isValidCivicReport(data) {
+      return data.keys().hasAll(['userId', 'category', 'location', 'description', 'status', 'reportedAt']) &&
+             data.userId == request.auth.uid &&
+             data.category is string && data.category.size() <= 100 &&
+             data.description is string && data.description.size() <= 2000 &&
+             data.status is string &&
+             data.reportedAt is string;
+    }
+
+
+    function isValidRestaurant(data) {
+      return data.keys().hasAll(['ownerId', 'name', 'category', 'address', 'locality', 'pincode', 'lat', 'lng']) &&
+             data.ownerId == request.auth.uid &&
+             data.name is string && data.name.size() <= 100 &&
+             data.category is string && data.category.size() <= 100 &&
+             data.address is string && data.address.size() <= 300 &&
+             data.lat is number && data.lng is number;
+    }
+
+    function isValidMenuItem(data) {
+      return data.keys().hasAll(['restaurantId', 'ownerId', 'name', 'category', 'price']) &&
+             data.ownerId == request.auth.uid &&
+             data.restaurantId is string && data.restaurantId.size() <= 100 &&
+             data.name is string && data.name.size() <= 100 &&
+             data.category is string && data.category.size() <= 100 &&
+             data.price is number;
+    }
+
+    // --- COLLECTION RULES ---
+
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isOwner(userId) && isValidUserProfile(incoming());
+      allow update: if isOwner(userId) && isValidUserProfile(incoming()) && 
+                    incoming().diff(existing()).affectedKeys().hasOnly(['name', 'phone', 'location', 'language', 'age', 'gender', 'bloodGroup', 'avatarUrl', 'isVolunteer', 'isBloodDonor']);
+      allow delete: if isAdmin();
+
+      match /saved_pandals/{pandalId} {
+        allow read, create, delete: if isOwner(userId);
+      }
+    }
+
+    match /workers/{workerId} {
+      allow read: if true;
+      allow create: if isSignedIn() && isValidWorker(incoming());
+      allow update: if (isOwner(existing().userId) || isAdmin()) && isValidWorker(incoming());
+      allow delete: if isOwner(existing().userId) || isAdmin();
+    }
+
+
+    match /restaurants/{restaurantId} {
+      allow read: if true;
+      allow create: if isSignedIn() && isValidRestaurant(incoming());
+      allow update: if (isOwner(existing().ownerId) || isAdmin());
+      allow delete: if isOwner(existing().ownerId) || isAdmin();
+      
+      match /menuItems/{menuItemId} {
+        allow read: if true;
+        allow create: if isSignedIn() && isValidMenuItem(incoming());
+        allow update: if (isOwner(existing().ownerId) || isAdmin());
+        allow delete: if isOwner(existing().ownerId) || isAdmin();
+      }
+    }
+
+    match /shops/{shopId} {
+      allow read: if true;
+      allow create: if isSignedIn() && isValidShop(incoming());
+      allow update: if (isOwner(existing().ownerId) || isAdmin()) && isValidShop(incoming());
+      allow delete: if isOwner(existing().ownerId) || isAdmin();
+    }
+
+    match /civic_reports/{reportId} {
+      allow read: if true;
+      allow create: if isSignedIn() && isValidCivicReport(incoming());
+      allow update: if (isOwner(existing().userId) || isAdmin()) && (
+        (incoming().diff(existing()).affectedKeys().hasOnly(['upvotes'])) ||
+        (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'officialResponse']))
+      );
+      allow delete: if isAdmin();
+    }
+
+    match /blood_donors/{donorId} {
+      allow read: if true;
+      allow create: if isSignedIn() && incoming().userId == request.auth.uid;
+      allow update: if isOwner(existing().userId) || isAdmin();
+      allow delete: if isOwner(existing().userId) || isAdmin();
+    }
+
+    match /local_alerts/{alertId} {
+      allow read: if true;
+      allow create: if isSignedIn();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /blood_requests/{id} {
+      allow read: if true;
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if isAdmin();
+    }
+
+    match /jobs/{id} {
+      allow read: if true;
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if isAdmin();
+    }
+
+    match /rentals/{id} {
+      allow read: if true;
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if isAdmin();
+    }
+
+    match /lost_found/{id} {
+      allow read: if true;
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if isAdmin();
+    }
+
+    match /service_requests/{id} {
+      allow read: if true;
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if isAdmin();
+    }
+
+    match /admin_verifications/{id} {
+      allow read: if true;
+      allow create: if isSignedIn();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /doctors/{id} {
+      allow read: if true;
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /hospitals/{id} {
+      allow read: if true;
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /puja_pandals/{pandalId} {
+      allow read: if true;
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() || isAdmin();
+      allow delete: if isAdmin();
+
+      match /reviews/{reviewId} {
+        allow read: if true;
+        allow create: if isSignedIn();
+        allow update, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      }
+    }
+
+    match /pandal_reports/{reportId} {
+      allow read: if true;
+      allow create: if true;
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+  }
+}

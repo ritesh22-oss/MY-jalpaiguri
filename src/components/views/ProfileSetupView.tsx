@@ -1,0 +1,357 @@
+import React, { useState } from 'react';
+import {
+  ChevronLeft,
+  User as UserIcon,
+  ChevronUp,
+  ChevronDown,
+  Loader2,
+  AlertCircle,
+  Check,
+  MapPin,
+  Navigation,
+  Sparkles
+} from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+import { useNav } from '../../context/NavigationContext';
+import { useLocation } from '../../context/LocationContext';
+import { useLanguage } from '../../context/LanguageContext';
+import { BloodGroup } from '../../types';
+
+export const ProfileSetupView: React.FC = () => {
+  const { user, firebaseUser, completeUserProfile } = useAuth();
+  const { navigate, replaceView } = useNav();
+  const { location, requestCurrentLocation, status, setIsLocationSelectorOpen } = useLocation();
+  const { isBengali, language, setLanguage, formatNumber, tLocality } = useLanguage();
+
+  const [name, setName] = useState(user?.name || firebaseUser?.displayName || '');
+  const [age, setAge] = useState<number | ''>(user?.age || '');
+  const [gender, setGender] = useState<'Male' | 'Female' | 'Other'>('Female');
+  const [bloodGroup, setBloodGroup] = useState<BloodGroup>(user?.bloodGroup || 'A+');
+  const [isBloodGroupOpen, setIsBloodGroupOpen] = useState(false);
+  const [isGenderDropdownOpen, setIsGenderDropdownOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [gpsLoading, setGpsLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+
+  React.useEffect(() => {
+    if (!name && (user?.name || firebaseUser?.displayName)) {
+      setName(user?.name || firebaseUser?.displayName || '');
+    }
+  }, [user?.name, firebaseUser?.displayName]);
+
+  const bloodGroups: BloodGroup[] = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+  const genderOptions = ['Male', 'Female', 'Other'] as const;
+
+  const getGenderLabel = (g: 'Male' | 'Female' | 'Other') => {
+    if (!isBengali) return g;
+    if (g === 'Male') return 'পুরুষ';
+    if (g === 'Female') return 'মহিলা';
+    return 'অন্যান্য';
+  };
+
+  const handleDetectGps = async () => {
+    setGpsLoading(true);
+    await requestCurrentLocation();
+    setGpsLoading(false);
+  };
+
+  const handleContinue = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) {
+      setErrorMsg(isBengali ? 'অনুগ্রহ করে আপনার পুরো নাম লিখুন।' : 'Please enter your full name.');
+      return;
+    }
+
+    setLoading(true);
+    setErrorMsg('');
+
+    try {
+      const savedLocation = location.name || 'Kadamtala, Jalpaiguri';
+      await completeUserProfile({
+        name: name.trim(),
+        age: typeof age === 'number' ? age : 28,
+        gender: gender || 'Female',
+        bloodGroup: bloodGroup || 'A+',
+        location: savedLocation,
+        coordinates: { lat: location.lat, lng: location.lng }
+      });
+
+      setLoading(false);
+      replaceView('home');
+    } catch (err: any) {
+      setLoading(false);
+      setErrorMsg(isBengali ? 'প্রোফাইল সংরক্ষণ করা যায়নি। অনুগ্রহ করে আবার চেষ্টা করুন।' : 'Failed to save profile. Please try again.');
+    }
+  };
+
+  return (
+    <div className="w-full min-h-screen bg-white dark:bg-[#0F1A15] text-[#11241C] dark:text-white flex flex-col justify-between p-5 select-none relative transition-colors">
+      <div className="w-full max-w-xl mx-auto flex-1 flex flex-col justify-between">
+      {/* Top Header Bar with Back button, Title & Language Switcher */}
+      <div className="w-full flex items-center justify-between pt-2 pb-2">
+        <button
+          onClick={() => navigate(user?.phone ? 'otp' : 'auth')}
+          className="p-1 -ml-1 text-gray-800 dark:text-[#A2B3AA] hover:text-black dark:hover:text-white active:scale-95 transition-all cursor-pointer"
+          aria-label="Go Back"
+        >
+          <ChevronLeft className="w-6 h-6 stroke-[2.2]" />
+        </button>
+
+        <h1 className="text-base font-bold text-gray-900 dark:text-white tracking-tight">
+          {isBengali ? 'প্রোফাইল সম্পন্ন করুন' : 'Complete Profile'}
+        </h1>
+
+        {/* Language Switcher */}
+        <div className="flex items-center bg-[#E8E4DA] dark:bg-white/10 p-0.5 rounded-full">
+          <button
+            onClick={() => setLanguage(language === 'bn' ? 'en' : 'bn')}
+            className="text-[11px] font-bold px-2 py-0.5 rounded-full text-[#007AFF] dark:text-blue-300 hover:bg-white/50 cursor-pointer"
+          >
+            {language === 'bn' ? 'EN' : 'বাংলা'}
+          </button>
+        </div>
+      </div>
+
+      {/* Main Content Area */}
+      <div className="w-full px-1 my-auto py-2">
+        {errorMsg && (
+          <div className="mb-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/40 rounded-xl p-2.5 text-xs text-rose-800 dark:text-rose-200 flex items-center gap-2 animate-in fade-in duration-200">
+            <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
+            <p className="text-xs">{errorMsg}</p>
+          </div>
+        )}
+
+        <form onSubmit={handleContinue} className="space-y-3.5">
+          {/* 1. Full Name */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-900 dark:text-white mb-1.5">
+              {isBengali ? 'পুরো নাম' : 'Full Name'}
+            </label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder={isBengali ? 'যেমন: প্রিয় শর্মা' : 'e.g., Priya Sharma'}
+              className="w-full bg-white dark:bg-[#17231E] border border-gray-300 dark:border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:border-[#2F74E9] focus:ring-1 focus:ring-[#2F74E9] transition-all shadow-2xs"
+            />
+          </div>
+
+          {/* 2. Real-Time Location Card */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-semibold text-gray-900 dark:text-white">
+                {isBengali ? 'বর্তমান অবস্থান ও এলাকা' : 'Live Location & Area'}
+              </label>
+              <button
+                type="button"
+                onClick={handleDetectGps}
+                disabled={gpsLoading}
+                className="text-[11px] font-bold text-[#2F74E9] dark:text-blue-400 hover:text-[#1D4ED8] flex items-center gap-1 cursor-pointer disabled:opacity-50"
+              >
+                {gpsLoading ? (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                ) : (
+                  <Navigation className="w-3 h-3" />
+                )}
+                <span>{isBengali ? 'সরাসরি জিপিএস' : 'Detect Real GPS'}</span>
+              </button>
+            </div>
+
+            <div className="bg-[#F8FAFC] dark:bg-[#17231E] border border-gray-200 dark:border-white/10 rounded-xl p-3 space-y-2 transition-colors">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-start gap-2 min-w-0">
+                  <div className="w-7 h-7 rounded-lg bg-blue-100 dark:bg-blue-950/60 text-blue-800 dark:text-blue-400 flex items-center justify-center shrink-0 mt-0.5">
+                    <MapPin className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-gray-900 dark:text-white truncate">
+                      {tLocality(location.name)}
+                    </p>
+                    <p className="text-[11px] text-gray-500 dark:text-[#A2B3AA]">
+                      {location.isApproximate
+                        ? (isBengali ? 'এলাকা নির্বাচিত' : 'Locality selected')
+                        : `${isBengali ? 'সরাসরি জিপিএস' : 'Realtime GPS'}: ${formatNumber(location.lat.toFixed(4))}, ${formatNumber(location.lng.toFixed(4))}`}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsLocationSelectorOpen(true)}
+                  className="px-2 py-1 text-[11px] font-bold text-[#2F74E9] dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors shrink-0 cursor-pointer"
+                >
+                  {isBengali ? 'পরিবর্তন' : 'Change'}
+                </button>
+              </div>
+
+              {!location.isApproximate && location.accuracy && (
+                <div className="flex items-center gap-1 text-[10px] text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 px-2 py-0.5 rounded-md font-medium">
+                  <Sparkles className="w-3 h-3" />
+                  <span>
+                    {isBengali
+                      ? `জিপিএস সঠিকতা: ±${formatNumber(location.accuracy)} মিটার`
+                      : `Real GPS Accuracy: ±${location.accuracy}m`}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* 3. Age with Stepper Controls */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-900 dark:text-white mb-1.5">
+              {isBengali ? 'বয়স' : 'Age'}
+            </label>
+            <div className="relative">
+              <input
+                type="number"
+                min={15}
+                max={100}
+                value={age}
+                onChange={(e) => setAge(e.target.value === '' ? '' : parseInt(e.target.value) || 18)}
+                placeholder={isBengali ? 'যেমন: ২৮' : 'e.g., 28'}
+                className="w-full bg-white dark:bg-[#17231E] border border-gray-300 dark:border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:border-[#2F74E9] focus:ring-1 focus:ring-[#2F74E9] transition-all shadow-2xs pr-9"
+              />
+              <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex flex-col items-center select-none">
+                <button
+                  type="button"
+                  onClick={() => setAge((prev) => (typeof prev === 'number' ? Math.min(100, prev + 1) : 28))}
+                  className="p-0.5 text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-white cursor-pointer"
+                >
+                  <ChevronUp className="w-3.5 h-3.5 stroke-[2.5]" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAge((prev) => (typeof prev === 'number' ? Math.max(15, prev - 1) : 28))}
+                  className="p-0.5 text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-white cursor-pointer -mt-1"
+                >
+                  <ChevronDown className="w-3.5 h-3.5 stroke-[2.5]" />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* 4. Gender Dropdown & Segmented Switcher */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-900 dark:text-white mb-1.5">
+              {isBengali ? 'লিঙ্গ' : 'Gender'}
+            </label>
+            {/* Dropdown style */}
+            <div className="relative mb-2">
+              <button
+                type="button"
+                onClick={() => setIsGenderDropdownOpen(!isGenderDropdownOpen)}
+                className="w-full bg-white dark:bg-[#17231E] border border-gray-300 dark:border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-gray-900 dark:text-white flex items-center justify-between shadow-2xs hover:border-gray-400 dark:hover:border-white/20 focus:outline-none focus:border-[#2F74E9] transition-all cursor-pointer"
+              >
+                <span>{getGenderLabel(gender)}</span>
+                <ChevronDown className="w-4 h-4 text-gray-500 stroke-[2]" />
+              </button>
+
+              {isGenderDropdownOpen && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-[#17231E] border border-gray-200 dark:border-white/10 rounded-xl shadow-lg z-30 py-1 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+                  {genderOptions.map((g) => (
+                    <button
+                      key={g}
+                      type="button"
+                      onClick={() => {
+                        setGender(g);
+                        setIsGenderDropdownOpen(false);
+                      }}
+                      className={`w-full px-3.5 py-2 text-left text-sm flex items-center justify-between hover:bg-gray-50 dark:hover:bg-white/5 transition-colors ${
+                        gender === g ? 'font-bold text-[#2F74E9] bg-blue-50/50 dark:bg-blue-950/40' : 'text-gray-700 dark:text-[#A2B3AA]'
+                      }`}
+                    >
+                      <span>{getGenderLabel(g)}</span>
+                      {gender === g && <Check className="w-4 h-4 text-[#2F74E9]" />}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Segmented Pill Selector */}
+            <div className="bg-[#ECEEF2] dark:bg-[#121E19] p-1 rounded-xl flex items-center gap-1 shadow-inner transition-colors">
+              {genderOptions.map((g) => {
+                const isSelected = gender === g;
+                return (
+                  <button
+                    key={g}
+                    type="button"
+                    onClick={() => setGender(g)}
+                    className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer select-none ${
+                      isSelected
+                        ? 'bg-[#2F74E9] text-white shadow-xs font-bold'
+                        : 'text-gray-700 dark:text-[#A2B3AA] hover:text-gray-900 dark:hover:text-white'
+                    }`}
+                  >
+                    {getGenderLabel(g)}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 5. Blood Group Dropdown Selector */}
+          <div className="relative">
+            <label className="block text-xs font-semibold text-gray-900 dark:text-white mb-1.5">
+              {isBengali ? 'রক্তের গ্রুপ' : 'Blood Group'}
+            </label>
+            <button
+              type="button"
+              onClick={() => setIsBloodGroupOpen(!isBloodGroupOpen)}
+              className="w-full bg-white dark:bg-[#17231E] border border-gray-300 dark:border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-gray-900 dark:text-white flex items-center justify-between shadow-2xs hover:border-gray-400 dark:hover:border-white/20 focus:outline-none focus:border-[#2F74E9] transition-all cursor-pointer"
+            >
+              <span>{bloodGroup}</span>
+              <ChevronDown className="w-4 h-4 text-gray-500 stroke-[2]" />
+            </button>
+
+            {/* Dropdown Menu for Blood Groups */}
+            {isBloodGroupOpen && (
+              <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-[#17231E] border border-gray-200 dark:border-white/10 rounded-xl shadow-lg z-30 p-2 grid grid-cols-4 gap-1.5 animate-in fade-in zoom-in-95 duration-150">
+                {bloodGroups.map((bg) => (
+                  <button
+                    key={bg}
+                    type="button"
+                    onClick={() => {
+                      setBloodGroup(bg);
+                      setIsBloodGroupOpen(false);
+                    }}
+                    className={`py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      bloodGroup === bg
+                        ? 'bg-[#2F74E9] text-white shadow-xs'
+                        : 'bg-gray-50 dark:bg-[#121E19] text-gray-700 dark:text-[#A2B3AA] hover:bg-gray-100 dark:hover:bg-white/10 border border-gray-200 dark:border-white/10'
+                    }`}
+                  >
+                    {bg}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Action Continue Button */}
+          <div className="pt-4">
+            <button
+              id="btn-profile-continue"
+              type="submit"
+              disabled={loading}
+              className="w-full h-[48px] rounded-xl bg-[#2F74E9] hover:bg-[#2563EB] active:scale-[0.99] text-white font-semibold text-[14px] flex items-center justify-center shadow-sm transition-all cursor-pointer disabled:opacity-70"
+            >
+              {loading ? (
+                <div className="flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin text-white" />
+                  <span>{isBengali ? 'প্রোফাইল সংরক্ষণ হচ্ছে...' : 'Saving Profile...'}</span>
+                </div>
+              ) : (
+                <span>{isBengali ? 'এগিয়ে যান' : 'Continue'}</span>
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
+      </div>
+    </div>
+  );
+};
+
+
